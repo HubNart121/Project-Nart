@@ -17,7 +17,10 @@
         
         .project-title-input {
             border: none; background: transparent; width: 100%; outline: none;
-            font-weight: bold; color: #475569; font-size: 2.25rem; line-height: 2.5rem;
+            font-weight: bold; color: #475569; font-size: 1.5rem; line-height: 2rem;
+        }
+        @media (min-width: 768px) {
+            .project-title-input { font-size: 2.25rem; line-height: 2.5rem; }
         }
 
         /* Status Colors */
@@ -25,6 +28,11 @@
         .status-inprogress { color: #f59e0b; background-color: #fffbeb; border-color: #fef3c7; }
         .status-done { color: #10b981; background-color: #ecfdf5; border-color: #d1fae5; }
 
+        /* Sidebar Transition for Mobile */
+        #sidebar {
+            transition: transform 0.3s ease-in-out;
+        }
+        
         /* สำหรับ Print PDF */
         @media print { 
             .no-print { display: none !important; }
@@ -39,14 +47,18 @@
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
     </style>
 </head>
-<body class="flex h-screen overflow-hidden">
+<body class="flex h-screen overflow-hidden relative">
+
+    <!-- Overlay for mobile sidebar -->
+    <div id="sidebar-overlay" onclick="toggleSidebar()" class="hidden fixed inset-0 bg-black/50 z-20 no-print"></div>
 
     <!-- Sidebar (จัดการหลายโปรเจกต์) -->
-    <div class="no-print w-72 bg-slate-900 text-slate-300 flex flex-col shadow-xl z-10">
-        <div class="p-6 border-b border-slate-800">
+    <aside id="sidebar" class="no-print fixed md:relative w-72 h-full bg-slate-900 text-slate-300 flex flex-col shadow-xl z-30 -translate-x-full md:translate-x-0">
+        <div class="p-6 border-b border-slate-800 flex justify-between items-center">
             <h1 class="text-xl font-bold text-white flex items-center gap-2">
                 <span>📊</span> Project Manager
             </h1>
+            <button onclick="toggleSidebar()" class="md:hidden text-white text-2xl">✕</button>
         </div>
         
         <div id="project-list" class="flex-1 overflow-y-auto p-3 space-y-1">
@@ -58,126 +70,165 @@
                 <span>+</span> เพิ่มโปรเจกต์ใหม่
             </button>
         </div>
-    </div>
+    </aside>
 
     <!-- Main Content -->
-    <div class="flex-1 overflow-y-auto relative bg-slate-100 h-full p-4 md:p-8" id="main-scroll">
-        <div class="max-w-[1400px] mx-auto">
-            
-            <!-- แถบปุ่มควบคุมด้านบน -->
-            <div class="no-print mb-6 flex justify-end gap-3 items-center">
-                <div class="text-slate-400 text-sm italic mr-auto bg-white px-3 py-1 rounded-full border border-slate-200">
-                    💾 ข้อมูลบันทึกอัตโนมัติในเบราว์เซอร์
-                </div>
-                <button onclick="addItem()" class="bg-white text-blue-600 border border-blue-600 px-5 py-2 rounded-md font-bold hover:bg-blue-50 transition shadow-sm">+ เพิ่มสินค้า</button>
-                <button onclick="exportToPDF()" class="bg-red-500 text-white px-5 py-2 rounded-md font-bold hover:bg-red-600 transition flex items-center gap-2 shadow-md">
-                    <span>📄</span> ดาวน์โหลด PDF
-                </button>
-            </div>
+    <main class="flex-1 overflow-y-auto relative bg-slate-100 h-full flex flex-col" id="main-scroll">
+        
+        <!-- Top Nav for Mobile -->
+        <div class="no-print bg-white p-4 border-b flex items-center justify-between md:hidden shadow-sm sticky top-0 z-10">
+            <button onclick="toggleSidebar()" class="p-2 bg-slate-100 rounded-md text-slate-600">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+            </button>
+            <div class="font-bold text-slate-700 truncate max-w-[150px]" id="mobile-current-title">โปรเจกต์...</div>
+            <button onclick="addItem()" class="bg-blue-600 text-white p-2 rounded-full shadow-md">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+                </svg>
+            </button>
+        </div>
 
-            <!-- เอกสารใบเสนอราคา/คำนวณกำไร -->
-            <div id="document-render" class="bg-white p-8 md:p-12 rounded-sm shadow-xl border-t-[12px] border-blue-600 min-h-[1000px]">
+        <div class="p-4 md:p-8">
+            <div class="max-w-[1400px] mx-auto">
                 
-                <!-- ส่วนหัว -->
-                <div class="flex justify-between items-start mb-6">
-                    <div class="w-2/3">
-                        <div class="flex items-center gap-4 mb-1">
-                            <input type="text" id="p-title" class="project-title-input" value="ชื่อโปรเจกต์ใหม่" oninput="updateProjectData()">
+                <!-- แถบปุ่มควบคุมด้านบน (Desktop) -->
+                <div class="no-print mb-6 hidden md:flex justify-end gap-3 items-center">
+                    <div class="text-slate-400 text-sm italic mr-auto bg-white px-4 py-2 rounded-full border border-slate-200 shadow-sm">
+                        💾 ข้อมูลบันทึกอัตโนมัติในเบราว์เซอร์
+                    </div>
+                    <button onclick="addItem()" class="bg-white text-blue-600 border border-blue-600 px-5 py-2 rounded-md font-bold hover:bg-blue-50 transition shadow-sm">+ เพิ่มสินค้า</button>
+                    <button onclick="exportToPDF()" class="bg-red-500 text-white px-5 py-2 rounded-md font-bold hover:bg-red-600 transition flex items-center gap-2 shadow-md">
+                        <span>📄</span> ดาวน์โหลด PDF
+                    </button>
+                </div>
+
+                <!-- Floating Download for Mobile -->
+                <button onclick="exportToPDF()" class="md:hidden fixed bottom-6 right-6 z-20 bg-red-500 text-white p-4 rounded-full shadow-2xl no-print">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                </button>
+
+                <!-- เอกสารใบเสนอราคา -->
+                <div id="document-render" class="bg-white p-4 md:p-12 rounded-sm shadow-xl border-t-[8px] md:border-t-[12px] border-blue-600 min-h-[1000px]">
+                    
+                    <!-- ส่วนหัวแบบ Responsive -->
+                    <div class="flex flex-col md:flex-row justify-between items-start gap-6 mb-8">
+                        <div class="w-full md:w-2/3">
+                            <div class="flex flex-wrap items-center gap-3 mb-2">
+                                <input type="text" id="p-title" class="project-title-input" value="ชื่อโปรเจกต์ใหม่" oninput="updateProjectData()">
+                                <div class="no-print shrink-0">
+                                    <select id="p-status" onchange="updateProjectData(); updateStatusStyle()" class="text-[10px] md:text-xs font-bold px-3 py-1.5 rounded-full border outline-none transition-all cursor-pointer">
+                                        <option value="Kick off">Kick off</option>
+                                        <option value="In Progress">In Progress</option>
+                                        <option value="Done">Done</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <p class="text-slate-400 text-xs md:text-lg italic uppercase tracking-wider mb-3">Project Profit Analysis Report</p>
                             
-                            <!-- ส่วน Status Project ที่เพิ่มใหม่ -->
-                            <div class="no-print shrink-0">
-                                <select id="p-status" onchange="updateProjectData(); updateStatusStyle()" class="text-xs font-bold px-3 py-1 rounded-full border outline-none transition-all cursor-pointer">
-                                    <option value="Kick off">Kick off</option>
-                                    <option value="In Progress">In Progress</option>
-                                    <option value="Done">Done</option>
-                                </select>
+                            <!-- ช่องใส่ลิงก์ -->
+                            <div class="flex items-center gap-2 bg-slate-50 p-2 rounded-md">
+                                <span class="text-slate-400">🔗</span>
+                                <input type="text" id="p-link" oninput="updateProjectData()" class="flex-1 text-blue-500 underline text-xs md:text-sm bg-transparent border-none outline-none" placeholder="ลิงก์ที่เกี่ยวข้อง...">
+                                <button onclick="openProjectLink()" class="no-print px-3 py-1 bg-white text-blue-600 text-[10px] font-bold rounded shadow-sm border border-blue-100 hover:bg-blue-50">เปิด</button>
                             </div>
                         </div>
                         
-                        <p class="text-slate-400 text-lg italic uppercase tracking-wider mb-2">Project Profit Analysis Report</p>
-                        
-                        <!-- ช่องใส่ลิงก์ -->
-                        <div class="mt-2 flex items-center gap-2">
-                            <span class="text-slate-400 text-xs">🔗</span>
-                            <input type="text" id="p-link" oninput="updateProjectData()" class="flex-1 text-blue-500 underline text-sm bg-transparent border-none outline-none hover:bg-slate-50 rounded p-1 transition-all" placeholder="เพิ่มลิงก์ที่เกี่ยวข้อง (เช่น Google Drive, รูปภาพ)...">
-                            <button onclick="openProjectLink()" class="no-print px-2 py-1 bg-blue-50 text-blue-600 text-[10px] font-bold rounded border border-blue-200 hover:bg-blue-100 transition-all">เปิดลิงก์</button>
+                        <div class="w-full md:w-auto text-left md:text-right space-y-2 border-t md:border-t-0 pt-4 md:pt-0">
+                            <div class="flex md:justify-end items-center gap-2">
+                                <span class="font-bold text-slate-600 italic text-sm">วันที่:</span>
+                                <input type="date" id="p-date" oninput="updateProjectData()" class="border-none outline-none text-right cursor-pointer bg-slate-50 p-1.5 rounded text-sm">
+                            </div>
+                            <div class="flex md:justify-end items-center gap-2 text-slate-400 text-xs">
+                                <span class="italic font-bold">เลขที่ (No):</span>
+                                <input type="text" id="p-no" oninput="updateProjectData()" value="QT-001" class="border-none outline-none text-right w-24 bg-transparent focus:bg-slate-50 rounded font-bold text-slate-700">
+                            </div>
                         </div>
                     </div>
-                    <div class="text-right space-y-2">
-                        <div class="flex justify-end items-center gap-2">
-                            <span class="font-bold text-slate-600 italic">วันที่:</span>
-                            <input type="date" id="p-date" oninput="updateProjectData()" class="border-none outline-none text-right cursor-pointer bg-slate-50 p-1 rounded">
-                        </div>
-                        <div class="flex justify-end items-center gap-2 text-slate-400 text-sm">
-                            <span class="italic font-bold">เลขที่ (No):</span>
-                            <input type="text" id="p-no" oninput="updateProjectData()" value="QT-001" class="border-none outline-none text-right w-24 bg-transparent focus:bg-slate-50 rounded font-bold text-slate-700">
+
+                    <!-- รายละเอียดโปรเจกต์ -->
+                    <div class="mb-10">
+                        <p class="font-bold mb-2 text-slate-800 flex items-center gap-2 text-sm md:text-base">
+                            <span>📝</span> รายละเอียดโปรเจกต์:
+                        </p>
+                        <textarea id="p-details" oninput="updateProjectData()" class="w-full p-3 md:p-4 border border-dashed border-slate-300 rounded-lg text-slate-600 focus:outline-none focus:border-blue-400 transition-all min-h-[80px] text-sm" placeholder="ระบุรายละเอียดโครงการ..."></textarea>
+                    </div>
+
+                    <!-- ตารางข้อมูล (เลื่อนได้ในแนวนอน) -->
+                    <div class="overflow-x-auto mb-10 -mx-4 md:mx-0">
+                        <div class="inline-block min-w-full align-middle">
+                            <table class="min-w-[1100px] w-full text-sm">
+                                <thead>
+                                    <tr class="bg-slate-50 text-slate-700 border-b-2 border-slate-200">
+                                        <th class="p-4 text-left font-bold">รายการสินค้า</th>
+                                        <th class="p-4 text-right font-bold">ต้นทุน (Cost)</th>
+                                        <th class="p-4 text-right font-bold">ราคาขาย (Price)</th>
+                                        <th class="p-4 text-center font-bold text-blue-600">Volume</th>
+                                        <th class="p-4 text-right font-bold text-green-700">Margin</th>
+                                        <th class="p-4 text-right font-bold text-blue-700">% Margin</th>
+                                        <th class="p-4 text-right font-bold text-slate-400 italic">Amt (cost)</th>
+                                        <th class="p-4 text-right font-bold text-blue-500 italic">Amt (Price)</th>
+                                        <th class="p-4 text-right font-bold text-orange-600">Amt (Profit)</th>
+                                        <th class="p-4 no-print w-10"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="item-list">
+                                    <!-- แถวจะถูกสร้างที่นี่ -->
+                                </tbody>
+                            </table>
                         </div>
                     </div>
-                </div>
 
-                <!-- รายละเอียดโปรเจกต์ -->
-                <div class="mb-10">
-                    <p class="font-bold mb-2 text-slate-800 flex items-center gap-2">
-                        <span>📝</span> รายละเอียดโปรเจกต์:
-                    </p>
-                    <textarea id="p-details" oninput="updateProjectData()" class="w-full p-4 border border-dashed border-slate-300 rounded-lg text-slate-600 focus:outline-none focus:border-blue-400 transition-all min-h-[100px]" placeholder="ระบุรายละเอียดโครงการ..."></textarea>
-                </div>
-
-                <!-- ตารางข้อมูล -->
-                <div class="overflow-x-auto mb-10">
-                    <table class="w-full text-sm">
-                        <thead>
-                            <tr class="bg-slate-50 text-slate-700 border-b-2 border-slate-200">
-                                <th class="p-4 text-left font-bold w-1/4">รายการสินค้า</th>
-                                <th class="p-4 text-right font-bold">ต้นทุน (Cost)</th>
-                                <th class="p-4 text-right font-bold">ราคาขาย (Price)</th>
-                                <th class="p-4 text-center font-bold text-blue-600">Volume</th>
-                                <th class="p-4 text-right font-bold text-green-700">Margin</th>
-                                <th class="p-4 text-right font-bold text-blue-700">% Margin</th>
-                                <th class="p-4 text-right font-bold text-slate-400 italic">Amt (cost)</th>
-                                <th class="p-4 text-right font-bold text-blue-500 italic">Amt (Price)</th>
-                                <th class="p-4 text-right font-bold text-orange-600">Amt (Profit)</th>
-                                <th class="p-4 no-print w-10"></th>
-                            </tr>
-                        </thead>
-                        <tbody id="item-list">
-                            <!-- แถวจะถูกสร้างที่นี่ -->
-                        </tbody>
-                    </table>
-                </div>
-
-                <!-- ส่วนสรุปผลสุทธิ -->
-                <div class="flex justify-between items-end border-t-2 border-slate-100 pt-10">
-                    <div class="w-1/3 text-slate-400 text-xs italic">
-                        <p>* ข้อมูลคำนวณอัตโนมัติอ้างอิงตามจำนวนและราคาต่อหน่วย</p>
-                        <p>* บันทึกข้อมูลครั้งล่าสุด: <span id="last-saved">-</span></p>
-                    </div>
-                    <div class="w-96 space-y-3">
-                        <div class="flex justify-between text-slate-600 items-center">
-                            <span>รวมราคาขายทั้งสิ้น:</span>
-                            <span id="sum-price" class="font-bold text-blue-600 text-xl">0.00</span>
+                    <!-- ส่วนสรุปผลสุทธิ -->
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-end border-t-2 border-slate-100 pt-8 gap-8">
+                        <div class="w-full md:w-1/3 text-slate-400 text-[10px] md:text-xs italic space-y-1">
+                            <p>* ข้อมูลคำนวณอัตโนมัติอ้างอิงตามจำนวนและราคาต่อหน่วย</p>
+                            <p>* บันทึกข้อมูลครั้งล่าสุด: <span id="last-saved">-</span></p>
+                            <p class="md:hidden mt-2 text-blue-500 font-bold">📱 แนะนำ: เลื่อนตารางไปทางซ้ายเพื่อดูข้อมูลกำไร</p>
                         </div>
-                        <div class="flex justify-between text-slate-400 text-sm italic items-center">
-                            <span>รวมต้นทุนทั้งหมด (Amount cost):</span>
-                            <span id="sum-cost">0.00</span>
-                        </div>
-                        <div class="flex justify-between text-slate-800 font-bold border-t pt-2 items-center">
-                            <span class="text-lg">กำไรสุทธิรวม (Amount):</span>
-                            <span id="sum-profit" class="text-green-600 text-2xl font-black">0.00</span>
-                        </div>
-                        <div class="flex justify-between text-2xl border-t-2 border-double border-slate-200 pt-4 mt-2 bg-blue-50 p-4 rounded-xl items-center">
-                            <span class="font-bold text-blue-900">Margin รวม (%):</span>
-                            <span id="sum-margin-percent" class="font-black text-blue-700">0.00 %</span>
+                        <div class="w-full md:w-96 space-y-3">
+                            <div class="flex justify-between text-slate-600 items-center">
+                                <span class="text-sm md:text-base">รวมราคาขายทั้งสิ้น:</span>
+                                <span id="sum-price" class="font-bold text-blue-600 text-lg md:text-xl">0.00</span>
+                            </div>
+                            <div class="flex justify-between text-slate-400 text-[10px] md:text-sm italic items-center">
+                                <span>รวมต้นทุนทั้งหมด (Amount cost):</span>
+                                <span id="sum-cost">0.00</span>
+                            </div>
+                            <div class="flex justify-between text-slate-800 font-bold border-t pt-2 items-center">
+                                <span class="text-base md:text-lg">กำไรสุทธิรวม (Amount):</span>
+                                <span id="sum-profit" class="text-green-600 text-xl md:text-2xl font-black">0.00</span>
+                            </div>
+                            <div class="flex justify-between text-xl border-t-2 border-double border-slate-200 pt-4 mt-2 bg-blue-50 p-4 rounded-xl items-center shadow-inner">
+                                <span class="font-bold text-blue-900 text-base md:text-xl">Margin รวม (%):</span>
+                                <span id="sum-margin-percent" class="font-black text-blue-700 text-xl md:text-2xl">0.00 %</span>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
+    </main>
 
     <script>
         let projects = [];
         let activeProjectId = null;
+
+        // Toggle Sidebar for Mobile
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            if (sidebar.classList.contains('-translate-x-full')) {
+                sidebar.classList.remove('-translate-x-full');
+                overlay.classList.remove('hidden');
+            } else {
+                sidebar.classList.add('-translate-x-full');
+                overlay.classList.add('hidden');
+            }
+        }
 
         window.onload = function() {
             const saved = localStorage.getItem('multi_project_data');
@@ -194,7 +245,6 @@
             }
         };
 
-        // ฟังก์ชันหาเลขที่ล่าสุดเพื่อรันอัตโนมัติ (QT-001)
         function generateNextNo() {
             let maxNo = 0;
             projects.forEach(p => {
@@ -210,10 +260,10 @@
             const newProj = {
                 id: Date.now().toString(),
                 title: name || "โปรเจกต์ใหม่",
-                status: "Kick off", // สถานะเริ่มต้น
+                status: "Kick off",
                 link: "",
                 date: new Date().toISOString().split('T')[0],
-                no: generateNextNo(), // รันเลขที่อัตโนมัติ
+                no: generateNextNo(),
                 details: "",
                 items: [{ id: 'i' + Date.now(), name: '', cost: 0, price: 0, volume: 1 }]
             };
@@ -235,9 +285,15 @@
             projects.forEach(p => {
                 const item = document.createElement('div');
                 item.className = `project-item group p-4 rounded-xl cursor-pointer flex items-center justify-between transition-all mb-2 shadow-sm ${p.id === activeProjectId ? 'active shadow-blue-200' : 'bg-slate-800/50 hover:bg-slate-800'}`;
-                item.onclick = () => { if(activeProjectId !== p.id) { activeProjectId = p.id; renderProjectList(); renderActiveProject(); } };
+                item.onclick = () => { 
+                    if(activeProjectId !== p.id) { 
+                        activeProjectId = p.id; 
+                        renderProjectList(); 
+                        renderActiveProject();
+                        if(window.innerWidth < 768) toggleSidebar(); 
+                    } 
+                };
                 
-                // แสดงสถานะย่อๆ ใน Sidebar
                 let statusDot = '⚪';
                 if(p.status === 'In Progress') statusDot = '🟡';
                 if(p.status === 'Done') statusDot = '🟢';
@@ -274,6 +330,7 @@
             if (!p) return;
 
             document.getElementById('p-title').value = p.title;
+            document.getElementById('mobile-current-title').innerText = p.title;
             document.getElementById('p-status').value = p.status || "Kick off";
             document.getElementById('p-link').value = p.link || "";
             document.getElementById('p-date').value = p.date;
@@ -296,16 +353,16 @@
                 const amtProfit = margin * item.volume;
 
                 tr.innerHTML = `
-                    <td class="p-3"><input type="text" value="${item.name}" oninput="updateItem(${idx}, 'name', this.value, this)" class="w-full bg-transparent outline-none focus:text-blue-600" placeholder="ระบุรายการสินค้า..."></td>
-                    <td class="p-3"><input type="number" value="${item.cost}" oninput="updateItem(${idx}, 'cost', this.value, this)" class="w-full text-right outline-none bg-transparent"></td>
-                    <td class="p-3"><input type="number" value="${item.price}" oninput="updateItem(${idx}, 'price', this.value, this)" class="w-full text-right outline-none bg-transparent font-bold"></td>
-                    <td class="p-3"><input type="number" value="${item.volume}" oninput="updateItem(${idx}, 'volume', this.value, this)" class="w-full text-center outline-none bg-blue-50 text-blue-700 rounded font-bold"></td>
-                    <td class="p-3 text-right font-bold text-green-600"><span class="margin-val">${margin.toLocaleString(undefined, {minimumFractionDigits: 2})}</span></td>
-                    <td class="p-3 text-right text-blue-500 font-bold"><span class="percent-val">${mPercent}</span>%</td>
-                    <td class="p-3 text-right text-slate-400 italic"><span class="amt-cost-val">${amtCost.toLocaleString(undefined, {minimumFractionDigits: 2})}</span></td>
-                    <td class="p-3 text-right text-blue-600 font-bold italic"><span class="amt-price-val">${amtPrice.toLocaleString(undefined, {minimumFractionDigits: 2})}</span></td>
-                    <td class="p-3 text-right font-bold text-orange-600"><span class="amt-profit-val">${amtProfit.toLocaleString(undefined, {minimumFractionDigits: 2})}</span></td>
-                    <td class="p-3 text-center no-print"><button onclick="removeItem(${idx})" class="text-red-300 hover:text-red-500">✕</button></td>
+                    <td class="p-4"><input type="text" value="${item.name}" oninput="updateItem(${idx}, 'name', this.value, this)" class="w-full bg-transparent outline-none focus:text-blue-600" placeholder="ระบุรายการสินค้า..."></td>
+                    <td class="p-4 text-right"><input type="number" value="${item.cost}" oninput="updateItem(${idx}, 'cost', this.value, this)" class="w-full text-right outline-none bg-transparent"></td>
+                    <td class="p-4 text-right"><input type="number" value="${item.price}" oninput="updateItem(${idx}, 'price', this.value, this)" class="w-full text-right outline-none bg-transparent font-bold"></td>
+                    <td class="p-4 text-center"><input type="number" value="${item.volume}" oninput="updateItem(${idx}, 'volume', this.value, this)" class="w-20 mx-auto text-center outline-none bg-blue-50 text-blue-700 rounded font-bold p-1"></td>
+                    <td class="p-4 text-right font-bold text-green-600"><span class="margin-val">${margin.toLocaleString(undefined, {minimumFractionDigits: 2})}</span></td>
+                    <td class="p-4 text-right text-blue-500 font-bold"><span class="percent-val">${mPercent}</span>%</td>
+                    <td class="p-4 text-right text-slate-400 italic"><span class="amt-cost-val">${amtCost.toLocaleString(undefined, {minimumFractionDigits: 2})}</span></td>
+                    <td class="p-4 text-right text-blue-600 font-bold italic"><span class="amt-price-val">${amtPrice.toLocaleString(undefined, {minimumFractionDigits: 2})}</span></td>
+                    <td class="p-4 text-right font-bold text-orange-600"><span class="amt-profit-val">${amtProfit.toLocaleString(undefined, {minimumFractionDigits: 2})}</span></td>
+                    <td class="p-4 text-center no-print"><button onclick="removeItem(${idx})" class="text-red-300 hover:text-red-500 text-lg">✕</button></td>
                 `;
                 tbody.appendChild(tr);
             });
@@ -332,8 +389,9 @@
             
             localStorage.setItem('multi_project_data', JSON.stringify(projects));
             
-            // อัปเดตข้อมูลใน Sidebar ทันที
-            renderProjectList();
+            const activeSidebarItem = document.querySelector('.project-item.active .truncate');
+            if(activeSidebarItem) activeSidebarItem.innerText = (p.status === 'Done' ? '🟢 ' : (p.status === 'In Progress' ? '🟡 ' : '🔵 ')) + p.title;
+            document.getElementById('mobile-current-title').innerText = p.title;
         }
 
         function updateItem(idx, field, val, inputEl) {
