@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Profit Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;700&display=swap');
+        body { font-family: 'Sarabun', sans-serif; background-color: #f1f5f9; }
+        
+        .project-item.active {
+            background-color: #2563eb;
+            color: white;
+        }
+        
+        .project-title-input {
+            border: none; background: transparent; width: 100%; outline: none;
+            font-weight: bold; color: #475569; font-size: 2.25rem; line-height: 2.5rem;
+        }
+
+        /* Status Colors */
+        .status-kickoff { color: #6366f1; background-color: #eef2ff; border-color: #c7d2fe; }
+        .status-inprogress { color: #f59e0b; background-color: #fffbeb; border-color: #fef3c7; }
+        .status-done { color: #10b981; background-color: #ecfdf5; border-color: #d1fae5; }
+
+        /* สำหรับ Print PDF */
+        @media print { 
+            .no-print { display: none !important; }
+            #main-content { margin: 0; padding: 0; width: 100%; }
+            .shadow-lg { shadow: none !important; }
+            body { background: white; }
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    </style>
+</head>
+<body class="flex h-screen overflow-hidden">
+
+    <!-- Sidebar (จัดการหลายโปรเจกต์) -->
+    <div class="no-print w-72 bg-slate-900 text-slate-300 flex flex-col shadow-xl z-10">
+        <div class="p-6 border-b border-slate-800">
+            <h1 class="text-xl font-bold text-white flex items-center gap-2">
+                <span>📊</span> Project Manager
+            </h1>
+        </div>
+        
+        <div id="project-list" class="flex-1 overflow-y-auto p-3 space-y-1">
+            <!-- รายชื่อโปรเจกต์จะแสดงที่นี่ -->
+        </div>
+
+        <div class="p-4 border-t border-slate-800">
+            <button onclick="createNewProject()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-all shadow-lg">
+                <span>+</span> เพิ่มโปรเจกต์ใหม่
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="flex-1 overflow-y-auto relative bg-slate-100 h-full p-4 md:p-8" id="main-scroll">
+        <div class="max-w-[1400px] mx-auto">
+            
+            <!-- แถบปุ่มควบคุมด้านบน -->
+            <div class="no-print mb-6 flex justify-end gap-3 items-center">
+                <div class="text-slate-400 text-sm italic mr-auto bg-white px-3 py-1 rounded-full border border-slate-200">
+                    💾 ข้อมูลบันทึกอัตโนมัติในเบราว์เซอร์
+                </div>
+                <button onclick="addItem()" class="bg-white text-blue-600 border border-blue-600 px-5 py-2 rounded-md font-bold hover:bg-blue-50 transition shadow-sm">+ เพิ่มสินค้า</button>
+                <button onclick="exportToPDF()" class="bg-red-500 text-white px-5 py-2 rounded-md font-bold hover:bg-red-600 transition flex items-center gap-2 shadow-md">
+                    <span>📄</span> ดาวน์โหลด PDF
+                </button>
+            </div>
+
+            <!-- เอกสารใบเสนอราคา/คำนวณกำไร -->
+            <div id="document-render" class="bg-white p-8 md:p-12 rounded-sm shadow-xl border-t-[12px] border-blue-600 min-h-[1000px]">
+                
+                <!-- ส่วนหัว -->
+                <div class="flex justify-between items-start mb-6">
+                    <div class="w-2/3">
+                        <div class="flex items-center gap-4 mb-1">
+                            <input type="text" id="p-title" class="project-title-input" value="ชื่อโปรเจกต์ใหม่" oninput="updateProjectData()">
+                            
+                            <!-- ส่วน Status Project ที่เพิ่มใหม่ -->
+                            <div class="no-print shrink-0">
+                                <select id="p-status" onchange="updateProjectData(); updateStatusStyle()" class="text-xs font-bold px-3 py-1 rounded-full border outline-none transition-all cursor-pointer">
+                                    <option value="Kick off">Kick off</option>
+                                    <option value="In Progress">In Progress</option>
+                                    <option value="Done">Done</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <p class="text-slate-400 text-lg italic uppercase tracking-wider mb-2">Project Profit Analysis Report</p>
+                        
+                        <!-- ช่องใส่ลิงก์ -->
+                        <div class="mt-2 flex items-center gap-2">
+                            <span class="text-slate-400 text-xs">🔗</span>
+                            <input type="text" id="p-link" oninput="updateProjectData()" class="flex-1 text-blue-500 underline text-sm bg-transparent border-none outline-none hover:bg-slate-50 rounded p-1 transition-all" placeholder="เพิ่มลิงก์ที่เกี่ยวข้อง (เช่น Google Drive, รูปภาพ)...">
+                            <button onclick="openProjectLink()" class="no-print px-2 py-1 bg-blue-50 text-blue-600 text-[10px] font-bold rounded border border-blue-200 hover:bg-blue-100 transition-all">เปิดลิงก์</button>
+                        </div>
+                    </div>
+                    <div class="text-right space-y-2">
+                        <div class="flex justify-end items-center gap-2">
+                            <span class="font-bold text-slate-600 italic">วันที่:</span>
+                            <input type="date" id="p-date" oninput="updateProjectData()" class="border-none outline-none text-right cursor-pointer bg-slate-50 p-1 rounded">
+                        </div>
+                        <div class="flex justify-end items-center gap-2 text-slate-400 text-sm">
+                            <span class="italic font-bold">เลขที่ (No):</span>
+                            <input type="text" id="p-no" oninput="updateProjectData()" value="QT-001" class="border-none outline-none text-right w-24 bg-transparent focus:bg-slate-50 rounded font-bold text-slate-700">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- รายละเอียดโปรเจกต์ -->
+                <div class="mb-10">
+                    <p class="font-bold mb-2 text-slate-800 flex items-center gap-2">
+                        <span>📝</span> รายละเอียดโปรเจกต์:
+                    </p>
+                    <textarea id="p-details" oninput="updateProjectData()" class="w-full p-4 border border-dashed border-slate-300 rounded-lg text-slate-600 focus:outline-none focus:border-blue-400 transition-all min-h-[100px]" placeholder="ระบุรายละเอียดโครงการ..."></textarea>
+                </div>
+
+                <!-- ตารางข้อมูล -->
+                <div class="overflow-x-auto mb-10">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="bg-slate-50 text-slate-700 border-b-2 border-slate-200">
+                                <th class="p-4 text-left font-bold w-1/4">รายการสินค้า</th>
+                                <th class="p-4 text-right font-bold">ต้นทุน (Cost)</th>
+                                <th class="p-4 text-right font-bold">ราคาขาย (Price)</th>
+                                <th class="p-4 text-center font-bold text-blue-600">Volume</th>
+                                <th class="p-4 text-right font-bold text-green-700">Margin</th>
+                                <th class="p-4 text-right font-bold text-blue-700">% Margin</th>
+                                <th class="p-4 text-right font-bold text-slate-400 italic">Amt (cost)</th>
+                                <th class="p-4 text-right font-bold text-blue-500 italic">Amt (Price)</th>
+                                <th class="p-4 text-right font-bold text-orange-600">Amt (Profit)</th>
+                                <th class="p-4 no-print w-10"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="item-list">
+                            <!-- แถวจะถูกสร้างที่นี่ -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- ส่วนสรุปผลสุทธิ -->
+                <div class="flex justify-between items-end border-t-2 border-slate-100 pt-10">
+                    <div class="w-1/3 text-slate-400 text-xs italic">
+                        <p>* ข้อมูลคำนวณอัตโนมัติอ้างอิงตามจำนวนและราคาต่อหน่วย</p>
+                        <p>* บันทึกข้อมูลครั้งล่าสุด: <span id="last-saved">-</span></p>
+                    </div>
+                    <div class="w-96 space-y-3">
+                        <div class="flex justify-between text-slate-600 items-center">
+                            <span>รวมราคาขายทั้งสิ้น:</span>
+                            <span id="sum-price" class="font-bold text-blue-600 text-xl">0.00</span>
+                        </div>
+                        <div class="flex justify-between text-slate-400 text-sm italic items-center">
+                            <span>รวมต้นทุนทั้งหมด (Amount cost):</span>
+                            <span id="sum-cost">0.00</span>
+                        </div>
+                        <div class="flex justify-between text-slate-800 font-bold border-t pt-2 items-center">
+                            <span class="text-lg">กำไรสุทธิรวม (Amount):</span>
+                            <span id="sum-profit" class="text-green-600 text-2xl font-black">0.00</span>
+                        </div>
+                        <div class="flex justify-between text-2xl border-t-2 border-double border-slate-200 pt-4 mt-2 bg-blue-50 p-4 rounded-xl items-center">
+                            <span class="font-bold text-blue-900">Margin รวม (%):</span>
+                            <span id="sum-margin-percent" class="font-black text-blue-700">0.00 %</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let projects = [];
+        let activeProjectId = null;
+
+        window.onload = function() {
+            const saved = localStorage.getItem('multi_project_data');
+            if (saved) {
+                projects = JSON.parse(saved);
+                if (projects.length > 0) activeProjectId = projects[0].id;
+            }
+            
+            if (projects.length === 0) {
+                createNewProject("โปรเจกต์ตัวอย่าง");
+            } else {
+                renderProjectList();
+                renderActiveProject();
+            }
+        };
+
+        // ฟังก์ชันหาเลขที่ล่าสุดเพื่อรันอัตโนมัติ (QT-001)
+        function generateNextNo() {
+            let maxNo = 0;
+            projects.forEach(p => {
+                if (p.no && p.no.startsWith('QT-')) {
+                    const num = parseInt(p.no.split('-')[1]);
+                    if (!isNaN(num) && num > maxNo) maxNo = num;
+                }
+            });
+            return 'QT-' + (maxNo + 1).toString().padStart(3, '0');
+        }
+
+        function createNewProject(name) {
+            const newProj = {
+                id: Date.now().toString(),
+                title: name || "โปรเจกต์ใหม่",
+                status: "Kick off", // สถานะเริ่มต้น
+                link: "",
+                date: new Date().toISOString().split('T')[0],
+                no: generateNextNo(), // รันเลขที่อัตโนมัติ
+                details: "",
+                items: [{ id: 'i' + Date.now(), name: '', cost: 0, price: 0, volume: 1 }]
+            };
+            projects.push(newProj);
+            activeProjectId = newProj.id;
+            saveAndSync();
+        }
+
+        function saveAndSync() {
+            localStorage.setItem('multi_project_data', JSON.stringify(projects));
+            document.getElementById('last-saved').innerText = new Date().toLocaleTimeString();
+            renderProjectList();
+            renderActiveProject();
+        }
+
+        function renderProjectList() {
+            const list = document.getElementById('project-list');
+            list.innerHTML = '';
+            projects.forEach(p => {
+                const item = document.createElement('div');
+                item.className = `project-item group p-4 rounded-xl cursor-pointer flex items-center justify-between transition-all mb-2 shadow-sm ${p.id === activeProjectId ? 'active shadow-blue-200' : 'bg-slate-800/50 hover:bg-slate-800'}`;
+                item.onclick = () => { if(activeProjectId !== p.id) { activeProjectId = p.id; renderProjectList(); renderActiveProject(); } };
+                
+                // แสดงสถานะย่อๆ ใน Sidebar
+                let statusDot = '⚪';
+                if(p.status === 'In Progress') statusDot = '🟡';
+                if(p.status === 'Done') statusDot = '🟢';
+                if(p.status === 'Kick off') statusDot = '🔵';
+
+                item.innerHTML = `
+                    <div class="flex items-center gap-3 overflow-hidden">
+                        <span class="text-xl">${p.id === activeProjectId ? '📁' : '📄'}</span>
+                        <div class="flex flex-col overflow-hidden">
+                            <span class="truncate font-bold text-sm">${statusDot} ${p.title}</span>
+                            <span class="text-[10px] opacity-50">${p.no} | ${p.date}</span>
+                        </div>
+                    </div>
+                    <button onclick="deleteProject(event, '${p.id}')" class="opacity-0 group-hover:opacity-100 p-2 hover:bg-red-500 rounded-lg transition-all">
+                        🗑️
+                    </button>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        function deleteProject(e, id) {
+            e.stopPropagation();
+            if (projects.length <= 1) return alert("ต้องมีอย่างน้อย 1 โปรเจกต์ครับ");
+            if (confirm("คุณแน่ใจหรือไม่ที่จะลบโปรเจกต์นี้? ข้อมูลจะหายถาวร")) {
+                projects = projects.filter(p => p.id !== id);
+                if (activeProjectId === id) activeProjectId = projects[0].id;
+                saveAndSync();
+            }
+        }
+
+        function renderActiveProject() {
+            const p = projects.find(proj => proj.id === activeProjectId);
+            if (!p) return;
+
+            document.getElementById('p-title').value = p.title;
+            document.getElementById('p-status').value = p.status || "Kick off";
+            document.getElementById('p-link').value = p.link || "";
+            document.getElementById('p-date').value = p.date;
+            document.getElementById('p-no').value = p.no;
+            document.getElementById('p-details').value = p.details;
+
+            updateStatusStyle();
+
+            const tbody = document.getElementById('item-list');
+            tbody.innerHTML = '';
+            p.items.forEach((item, idx) => {
+                const tr = document.createElement('tr');
+                tr.className = "item-row border-b border-slate-50 hover:bg-slate-50 transition-all";
+                tr.dataset.idx = idx;
+                
+                const margin = item.price - item.cost;
+                const mPercent = item.price !== 0 ? (margin / item.price * 100).toFixed(2) : "0.00";
+                const amtCost = item.cost * item.volume;
+                const amtPrice = item.price * item.volume;
+                const amtProfit = margin * item.volume;
+
+                tr.innerHTML = `
+                    <td class="p-3"><input type="text" value="${item.name}" oninput="updateItem(${idx}, 'name', this.value, this)" class="w-full bg-transparent outline-none focus:text-blue-600" placeholder="ระบุรายการสินค้า..."></td>
+                    <td class="p-3"><input type="number" value="${item.cost}" oninput="updateItem(${idx}, 'cost', this.value, this)" class="w-full text-right outline-none bg-transparent"></td>
+                    <td class="p-3"><input type="number" value="${item.price}" oninput="updateItem(${idx}, 'price', this.value, this)" class="w-full text-right outline-none bg-transparent font-bold"></td>
+                    <td class="p-3"><input type="number" value="${item.volume}" oninput="updateItem(${idx}, 'volume', this.value, this)" class="w-full text-center outline-none bg-blue-50 text-blue-700 rounded font-bold"></td>
+                    <td class="p-3 text-right font-bold text-green-600"><span class="margin-val">${margin.toLocaleString(undefined, {minimumFractionDigits: 2})}</span></td>
+                    <td class="p-3 text-right text-blue-500 font-bold"><span class="percent-val">${mPercent}</span>%</td>
+                    <td class="p-3 text-right text-slate-400 italic"><span class="amt-cost-val">${amtCost.toLocaleString(undefined, {minimumFractionDigits: 2})}</span></td>
+                    <td class="p-3 text-right text-blue-600 font-bold italic"><span class="amt-price-val">${amtPrice.toLocaleString(undefined, {minimumFractionDigits: 2})}</span></td>
+                    <td class="p-3 text-right font-bold text-orange-600"><span class="amt-profit-val">${amtProfit.toLocaleString(undefined, {minimumFractionDigits: 2})}</span></td>
+                    <td class="p-3 text-center no-print"><button onclick="removeItem(${idx})" class="text-red-300 hover:text-red-500">✕</button></td>
+                `;
+                tbody.appendChild(tr);
+            });
+            calculateTotals();
+        }
+
+        function updateStatusStyle() {
+            const select = document.getElementById('p-status');
+            const val = select.value;
+            select.classList.remove('status-kickoff', 'status-inprogress', 'status-done');
+            if(val === 'Kick off') select.classList.add('status-kickoff');
+            if(val === 'In Progress') select.classList.add('status-inprogress');
+            if(val === 'Done') select.classList.add('status-done');
+        }
+
+        function updateProjectData() {
+            const p = projects.find(proj => proj.id === activeProjectId);
+            p.title = document.getElementById('p-title').value;
+            p.status = document.getElementById('p-status').value;
+            p.link = document.getElementById('p-link').value;
+            p.date = document.getElementById('p-date').value;
+            p.no = document.getElementById('p-no').value;
+            p.details = document.getElementById('p-details').value;
+            
+            localStorage.setItem('multi_project_data', JSON.stringify(projects));
+            
+            // อัปเดตข้อมูลใน Sidebar ทันที
+            renderProjectList();
+        }
+
+        function updateItem(idx, field, val, inputEl) {
+            const p = projects.find(proj => proj.id === activeProjectId);
+            const item = p.items[idx];
+            item[field] = field === 'name' ? val : (parseFloat(val) || 0);
+            
+            const margin = item.price - item.cost;
+            const mPercent = item.price !== 0 ? (margin / item.price * 100).toFixed(2) : "0.00";
+            const amtCost = item.cost * item.volume;
+            const amtPrice = item.price * item.volume;
+            const amtProfit = margin * item.volume;
+
+            const row = inputEl.closest('tr');
+            row.querySelector('.margin-val').innerText = margin.toLocaleString(undefined, {minimumFractionDigits: 2});
+            row.querySelector('.percent-val').innerText = mPercent;
+            row.querySelector('.amt-cost-val').innerText = amtCost.toLocaleString(undefined, {minimumFractionDigits: 2});
+            row.querySelector('.amt-price-val').innerText = amtPrice.toLocaleString(undefined, {minimumFractionDigits: 2});
+            row.querySelector('.amt-profit-val').innerText = amtProfit.toLocaleString(undefined, {minimumFractionDigits: 2});
+
+            localStorage.setItem('multi_project_data', JSON.stringify(projects));
+            calculateTotals();
+        }
+
+        function addItem() {
+            const p = projects.find(proj => proj.id === activeProjectId);
+            p.items.push({ id: 'i' + Date.now(), name: '', cost: 0, price: 0, volume: 1 });
+            saveAndSync();
+        }
+
+        function removeItem(idx) {
+            const p = projects.find(proj => proj.id === activeProjectId);
+            p.items.splice(idx, 1);
+            if (p.items.length === 0) p.items.push({ id: 'i' + Date.now(), name: '', cost: 0, price: 0, volume: 1 });
+            saveAndSync();
+        }
+
+        function calculateTotals() {
+            const p = projects.find(proj => proj.id === activeProjectId);
+            let sumC = 0, sumP = 0, sumProfit = 0;
+            p.items.forEach(i => {
+                sumC += (i.cost * i.volume);
+                sumP += (i.price * i.volume);
+                sumProfit += ((i.price - i.cost) * i.volume);
+            });
+            
+            const sumMPercent = sumP !== 0 ? (sumProfit / sumP * 100).toFixed(2) : "0.00";
+
+            document.getElementById('sum-cost').innerText = sumC.toLocaleString(undefined, {minimumFractionDigits: 2});
+            document.getElementById('sum-price').innerText = sumP.toLocaleString(undefined, {minimumFractionDigits: 2});
+            document.getElementById('sum-profit').innerText = sumProfit.toLocaleString(undefined, {minimumFractionDigits: 2});
+            document.getElementById('sum-margin-percent').innerText = sumMPercent + " %";
+            document.getElementById('last-saved').innerText = new Date().toLocaleTimeString();
+        }
+
+        function exportToPDF() {
+            const element = document.getElementById('document-render');
+            const title = document.getElementById('p-title').value || 'Project_Report';
+            const opt = {
+                margin: 5,
+                filename: title + '.pdf',
+                image: { type: 'jpeg', quality: 1 },
+                html2canvas: { scale: 2, useCORS: true },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+            };
+            html2pdf().set(opt).from(element).save();
+        }
+
+        function openProjectLink() {
+            const url = document.getElementById('p-link').value;
+            if (!url) return alert("กรุณาใส่ลิงก์ก่อนครับ");
+            let finalUrl = url.trim();
+            if (!finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
+                finalUrl = 'https://' + finalUrl;
+            }
+            window.open(finalUrl, '_blank');
+        }
+    </script>
+</body>
+</html>
